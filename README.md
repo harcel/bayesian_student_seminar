@@ -1,6 +1,6 @@
 # The how and why of statistically modeling student progress
 
-Seminar at the UvA DSC on Oct 21, 2022
+Seminar at the UvA DSC on Nov 25, 2022
 
 To install a conda environment that can run the code:
 
