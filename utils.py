@@ -1,3 +1,5 @@
+import pandas as pd
+
 def make_ex_line(posterior):
     """ Make a finely sampled array along x that follows the maximum a posteriori.
         posterior should be trace.posterior from a sampled PyMC model. This is specifically meant
@@ -19,3 +21,9 @@ def make_ex_line(posterior):
     
     return x_post, y_post
                         
+
+    
+    
+def read_student_data():
+    pd.read_csv()
+    
