@@ -1,4 +1,4 @@
-name: pymc4
+name: pymc
 channels:
   - conda-forge
 dependencies:

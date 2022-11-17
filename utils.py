@@ -2,6 +2,8 @@ import networkx as nx
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import pymc as pm
+import arviz as az
 
 def make_ex_line(posterior):
     """ Make a finely sampled array along x that follows the maximum a posteriori.
@@ -23,7 +25,72 @@ def make_ex_line(posterior):
                         constpart, linpart)
     
     return x_post, y_post
-                        
+
+def plot_sampled_models(trace, x=np.arange(2), y=np.arange(2), 
+                        max_post=True, nlines=100):
+    """Utility function to plot samples of the linear fit posterior.
+    x and y are th x and y of the data.
+    max_post overplots the average posterior as well
+    nlines sets how many samples from the posterior are plotted.    
+    """
+    
+    true_intercept = 4
+    true_slope = 6
+        
+    slopes = trace.posterior.Slope.to_numpy().flatten()
+    intercepts = trace.posterior.Intercept.to_numpy().flatten()
+
+    plt.figure(figsize=(5,5))
+    plt.scatter(x, y, label='Data')
+    plt.xlabel('x'); plt.ylabel('y');
+
+    # Plot np model lines
+    inds = np.random.randint(0, len(slopes), nlines)
+    xs = np.linspace(x.min(), x.max(), 1000)
+    true_regression_line = true_regression_line = true_intercept + true_slope * xs
+    for ind in inds:
+        plt.plot(xs, intercepts[ind]+xs*slopes[ind], color='k', linewidth=.1)
+
+    plt.plot(xs, true_regression_line, color='red', linewidth=2, label='Input relation')
+    
+    if max_post:
+        intercept = intercepts.mean()
+        slope = slopes.mean()
+        plt.plot(xs, intercept+xs*slope, color='orange', linewidth=4, label="Posterior average")
+        
+    
+    plt.legend();
+    
+    return
+
+def plot_switch_example(trace_ex, nlines, x=np.arange(2), y=np.arange(2)):
+    posterior = trace_ex.posterior.stack(draws=("chain", "draw"))
+
+    xx = np.linspace(x.min(),x.max(),1000)
+
+    switches = posterior.data_vars["Switchpoint"].values
+    consts = posterior.data_vars["Constant"].values
+    slopes = posterior.data_vars["Slope"].values
+
+    inds = np.random.randint(0, len(consts), nlines)
+
+    plt.figure(figsize=(8,8))
+    plt.scatter(x, y)
+    plt.xlabel('X')
+    plt.ylabel('Y')
+
+    for ind in inds:
+        sw = switches[ind]
+        sl = slopes[ind]
+        c = consts[ind]
+        linpart = xx * sl + c - sl*sw
+
+        ypost = np.where(xx < sw, c, linpart)
+
+        plt.plot(xx, ypost, color='k', linewidth=.1)
+    return
+
+
 
 def hash_nr(df, columns):
     """Hash a column using md5.
@@ -121,6 +188,10 @@ def create_data(difficulties=None, ability_diff=3., ability_std=0.1, n_st=500,
 
     grades = grade(abilities, difficulties, noise=noise_cijfers)
     
+    # Set to NaN for those who didn't do some courses:
+    grades[n_st:,:3] = np.nan
+    grades[:n_st,4:] = np.nan
+    
     return grades
 
  
@@ -143,6 +214,40 @@ def grade_df(grades,
     
     return cijfertjes
 
+def model_and_visualize(grades_df):
+    
+    # Some data structures we need
+    courses = grades_df.Course.unique(); n_courses = len(courses)
+    course_enum = {v:i for i, v in enumerate(courses)}
+    course_idx = np.array([course_enum[v] for v in grades_df.Course])
+
+    students = grades_df.StudentNumber.unique(); n_students = len(students)
+    student_enum = {s:i for i, s in enumerate(students)}
+    student_idx = np.array([student_enum[s] for s in grades_df.StudentNumber])
+
+    # A pooled, hierarchical model for courses:
+    with pm.Model() as simulatie:
+        # Property of the courses
+        δ = pm.Normal('Course difficulty', 0, 3, shape=n_courses)
+        
+        # Properties of the students: ability
+        α = pm.Normal('Student ability', 0, 3, shape=n_students)
+        
+        # Uncertainty in grade follows a Gaussian with stdev:
+        ϵ = pm.HalfNormal('eps', 1)
+        
+        # Estimated grade from ability and difficulty
+        grade_estimate = 4 / (1+np.exp(δ[course_idx] - (α[student_idx]-α.mean() ))) + 6
+        # Likelihood is that gaussian
+        grades = pm.Normal("Grades", grade_estimate, sigma=ϵ, observed=grades_df.Grade)
+
+        # InferenceButton(TM)
+        step = pm.NUTS()
+        trace = pm.sample(2000, cores=4, step=step, tune=1000)
+
+    az.plot_trace(trace, var_names=['Course difficulty', 'eps'], figsize=(10,6));
+    
+    return trace, simulatie
     
 def read_student_data():
     """Results saved in Dutch, so read, clean up and translate"""
