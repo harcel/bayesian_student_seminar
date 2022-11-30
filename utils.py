@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pymc as pm
 import arviz as az
 
+# Marcel Haas, Nov 2022 (m.r.haas@uva.nl)
+
 def make_ex_line(posterior):
     """ Make a finely sampled array along x that follows the maximum a posteriori.
         posterior should be trace.posterior from a sampled PyMC model. This is specifically meant
@@ -64,6 +66,9 @@ def plot_sampled_models(trace, x=np.arange(2), y=np.arange(2),
     return
 
 def plot_switch_example(trace_ex, nlines, x=np.arange(2), y=np.arange(2)):
+    """Like above, but for the slightly more complicated model    
+    """
+    
     posterior = trace_ex.posterior.stack(draws=("chain", "draw"))
 
     xx = np.linspace(x.min(),x.max(),1000)
@@ -308,7 +313,7 @@ def course_network(df,
     n_students = percourse.StudentNumber.nunique()
     nst = pd.DataFrame(n_students).rename(
         columns={'StudentNumber':'Number'})
-    av_grades = percourse.Grade.mean()
+    if Cijfer: av_grades = percourse.Grade.mean()
     df = df.merge(nst, how='inner', left_on="Course", right_index=True)
     df = df[df.Number >= min_students_course]
     
